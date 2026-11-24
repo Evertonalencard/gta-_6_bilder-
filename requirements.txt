@@ -1,0 +1,2 @@
+# Este projeto não possui dependências externas no momento.
+# Adicione aqui os pacotes necessários, um por linha.
