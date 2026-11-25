@@ -1,4 +1,0 @@
-# Este projeto não possui dependências externas no momento.
-# Adicione aqui os pacotes necessários, um por linha.
-arcade>=3.0
-Pillow>=9.0
