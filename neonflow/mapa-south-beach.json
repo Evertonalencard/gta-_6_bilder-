@@ -1,0 +1,573 @@
+{
+ "nome": "South Beach, Miami Beach",
+ "nodes": [
+  {
+   "id": "a17",
+   "name": "Alton Rd × 17th St",
+   "x": 380,
+   "y": 240,
+   "role": ""
+  },
+  {
+   "id": "a14",
+   "name": "Alton Rd × 14th St",
+   "x": 380,
+   "y": 390,
+   "role": ""
+  },
+  {
+   "id": "a10",
+   "name": "Alton Rd × 10th St",
+   "x": 380,
+   "y": 550,
+   "role": ""
+  },
+  {
+   "id": "a5",
+   "name": "Alton Rd × 5th St",
+   "x": 380,
+   "y": 720,
+   "role": ""
+  },
+  {
+   "id": "m17",
+   "name": "Meridian Av × 17th St",
+   "x": 500,
+   "y": 240,
+   "role": ""
+  },
+  {
+   "id": "m14",
+   "name": "Meridian Av × 14th St",
+   "x": 500,
+   "y": 390,
+   "role": ""
+  },
+  {
+   "id": "m10",
+   "name": "Meridian Av × 10th St",
+   "x": 500,
+   "y": 550,
+   "role": ""
+  },
+  {
+   "id": "m5",
+   "name": "Meridian Av × 5th St",
+   "x": 500,
+   "y": 720,
+   "role": ""
+  },
+  {
+   "id": "w17",
+   "name": "Washington Av × 17th St",
+   "x": 620,
+   "y": 240,
+   "role": ""
+  },
+  {
+   "id": "w14",
+   "name": "Washington Av × 14th St",
+   "x": 620,
+   "y": 390,
+   "role": ""
+  },
+  {
+   "id": "w10",
+   "name": "Washington Av × 10th St",
+   "x": 620,
+   "y": 550,
+   "role": ""
+  },
+  {
+   "id": "w5",
+   "name": "Washington Av × 5th St",
+   "x": 620,
+   "y": 720,
+   "role": ""
+  },
+  {
+   "id": "c17",
+   "name": "Collins Av × 17th St",
+   "x": 720,
+   "y": 240,
+   "role": ""
+  },
+  {
+   "id": "c14",
+   "name": "Collins Av × 14th St",
+   "x": 720,
+   "y": 390,
+   "role": ""
+  },
+  {
+   "id": "c10",
+   "name": "Collins Av × 10th St",
+   "x": 720,
+   "y": 550,
+   "role": ""
+  },
+  {
+   "id": "c5",
+   "name": "Collins Av × 5th St",
+   "x": 720,
+   "y": 720,
+   "role": ""
+  },
+  {
+   "id": "o14",
+   "name": "Ocean Dr × 14th St",
+   "x": 790,
+   "y": 390,
+   "role": ""
+  },
+  {
+   "id": "o10",
+   "name": "Ocean Dr × 10th St",
+   "x": 790,
+   "y": 550,
+   "role": ""
+  },
+  {
+   "id": "o5",
+   "name": "Ocean Dr × 5th St",
+   "x": 790,
+   "y": 720,
+   "role": ""
+  },
+  {
+   "id": "cc",
+   "name": "Centro de Convenções (evento)",
+   "x": 560,
+   "y": 160,
+   "role": "src"
+  },
+  {
+   "id": "dm",
+   "name": "Dade Blvd × Meridian Av",
+   "x": 500,
+   "y": 130,
+   "role": ""
+  },
+  {
+   "id": "da",
+   "name": "Dade Blvd × Alton Rd",
+   "x": 380,
+   "y": 130,
+   "role": ""
+  },
+  {
+   "id": "dw",
+   "name": "Dade Blvd × West Av",
+   "x": 310,
+   "y": 150,
+   "role": ""
+  },
+  {
+   "id": "wi",
+   "name": "Watson Island",
+   "x": 190,
+   "y": 750,
+   "role": ""
+  },
+  {
+   "id": "ven",
+   "name": "Venetian Causeway → Downtown",
+   "x": 70,
+   "y": 160,
+   "role": "snk"
+  },
+  {
+   "id": "mac",
+   "name": "MacArthur Causeway → I-395",
+   "x": 70,
+   "y": 770,
+   "role": "snk"
+  },
+  {
+   "id": "n1",
+   "name": "Alton Rd norte → I-195",
+   "x": 380,
+   "y": 40,
+   "role": "snk"
+  },
+  {
+   "id": "n2",
+   "name": "Collins Av → North Beach",
+   "x": 720,
+   "y": 40,
+   "role": "snk"
+  }
+ ],
+ "roads": [
+  {
+   "id": "r1",
+   "u": "a5",
+   "v": "a10",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Alton Rd"
+  },
+  {
+   "id": "r2",
+   "u": "a10",
+   "v": "a14",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Alton Rd"
+  },
+  {
+   "id": "r3",
+   "u": "a14",
+   "v": "a17",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Alton Rd"
+  },
+  {
+   "id": "r4",
+   "u": "a17",
+   "v": "da",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Alton Rd"
+  },
+  {
+   "id": "r5",
+   "u": "da",
+   "v": "n1",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Alton Rd"
+  },
+  {
+   "id": "r6",
+   "u": "m5",
+   "v": "m10",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Meridian Av"
+  },
+  {
+   "id": "r7",
+   "u": "m10",
+   "v": "m14",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Meridian Av"
+  },
+  {
+   "id": "r8",
+   "u": "m14",
+   "v": "m17",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Meridian Av"
+  },
+  {
+   "id": "r9",
+   "u": "m17",
+   "v": "dm",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Meridian Av"
+  },
+  {
+   "id": "r10",
+   "u": "w5",
+   "v": "w10",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Washington Av"
+  },
+  {
+   "id": "r11",
+   "u": "w10",
+   "v": "w14",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Washington Av"
+  },
+  {
+   "id": "r12",
+   "u": "w14",
+   "v": "w17",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Washington Av"
+  },
+  {
+   "id": "r13",
+   "u": "c5",
+   "v": "c10",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": false,
+   "name": "Collins Av"
+  },
+  {
+   "id": "r14",
+   "u": "c10",
+   "v": "c14",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": false,
+   "name": "Collins Av"
+  },
+  {
+   "id": "r15",
+   "u": "c14",
+   "v": "c17",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": false,
+   "name": "Collins Av"
+  },
+  {
+   "id": "r16",
+   "u": "c17",
+   "v": "n2",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": false,
+   "name": "Collins Av"
+  },
+  {
+   "id": "r17",
+   "u": "o5",
+   "v": "o10",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Ocean Dr"
+  },
+  {
+   "id": "r18",
+   "u": "o10",
+   "v": "o14",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Ocean Dr"
+  },
+  {
+   "id": "r19",
+   "u": "a17",
+   "v": "m17",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "17th St"
+  },
+  {
+   "id": "r20",
+   "u": "m17",
+   "v": "w17",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "17th St"
+  },
+  {
+   "id": "r21",
+   "u": "w17",
+   "v": "c17",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "17th St"
+  },
+  {
+   "id": "r22",
+   "u": "a14",
+   "v": "m14",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "14th St"
+  },
+  {
+   "id": "r23",
+   "u": "m14",
+   "v": "w14",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "14th St"
+  },
+  {
+   "id": "r24",
+   "u": "w14",
+   "v": "c14",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "14th St"
+  },
+  {
+   "id": "r25",
+   "u": "c14",
+   "v": "o14",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "14th St"
+  },
+  {
+   "id": "r26",
+   "u": "a10",
+   "v": "m10",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "10th St"
+  },
+  {
+   "id": "r27",
+   "u": "m10",
+   "v": "w10",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "10th St"
+  },
+  {
+   "id": "r28",
+   "u": "w10",
+   "v": "c10",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "10th St"
+  },
+  {
+   "id": "r29",
+   "u": "c10",
+   "v": "o10",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "10th St"
+  },
+  {
+   "id": "r30",
+   "u": "a5",
+   "v": "m5",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": true,
+   "name": "5th St"
+  },
+  {
+   "id": "r31",
+   "u": "m5",
+   "v": "w5",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": true,
+   "name": "5th St"
+  },
+  {
+   "id": "r32",
+   "u": "w5",
+   "v": "c5",
+   "tipo": "av3",
+   "cap": 2400,
+   "twoWay": true,
+   "name": "5th St"
+  },
+  {
+   "id": "r33",
+   "u": "c5",
+   "v": "o5",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "5th St"
+  },
+  {
+   "id": "r34",
+   "u": "dw",
+   "v": "da",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Dade Blvd"
+  },
+  {
+   "id": "r35",
+   "u": "da",
+   "v": "dm",
+   "tipo": "av2",
+   "cap": 1600,
+   "twoWay": true,
+   "name": "Dade Blvd"
+  },
+  {
+   "id": "r36",
+   "u": "cc",
+   "v": "dm",
+   "tipo": "exp",
+   "cap": 3200,
+   "twoWay": false,
+   "name": "Convention Center Dr"
+  },
+  {
+   "id": "r37",
+   "u": "cc",
+   "v": "m17",
+   "tipo": "exp",
+   "cap": 3200,
+   "twoWay": false,
+   "name": "Saída oeste do centro"
+  },
+  {
+   "id": "r38",
+   "u": "cc",
+   "v": "w17",
+   "tipo": "exp",
+   "cap": 3200,
+   "twoWay": false,
+   "name": "Saída leste do centro"
+  },
+  {
+   "id": "r39",
+   "u": "dw",
+   "v": "ven",
+   "tipo": "local",
+   "cap": 600,
+   "twoWay": true,
+   "name": "Venetian Causeway"
+  },
+  {
+   "id": "r40",
+   "u": "a5",
+   "v": "wi",
+   "tipo": "exp",
+   "cap": 3200,
+   "twoWay": true,
+   "name": "MacArthur Causeway"
+  },
+  {
+   "id": "r41",
+   "u": "wi",
+   "v": "mac",
+   "tipo": "exp",
+   "cap": 3200,
+   "twoWay": true,
+   "name": "MacArthur Causeway"
+  }
+ ],
+ "evento": 12000
+}

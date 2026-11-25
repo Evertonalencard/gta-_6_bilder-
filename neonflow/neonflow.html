@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeonFlow — Traffic Planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: pitch de startup com cara de pôster de jogo — confiante, noturno, divertido, mas números sérios.
+   IDEA: um "mapa de missão" neon de Miami Beach (a Vice City real) onde o tráfego é o personagem.
+   PICTURE: pôr do sol listrado + mapa vivo com carros andando pelas ruas, cores = ocupação da via.
+   COLOUR and TYPE: noite violeta, rosa-choque, laranja-pôr-do-sol, turquesa; Anton para títulos, Inter no corpo.
+   LAYOUT: Pitch em telas cheias com rolagem por slide; Planejador = ferramentas | mapa | painel. */
+:root{color-scheme:dark;--bg:#120821;--deep:#1c0e36;--panel:#21113f;--line:#3a2566;--ink:#fff4f9;--mute:#c9b6e4;
+--pink:#ff3d8b;--orange:#ff8a3d;--sun:#ffc15e;--teal:#22e1c9;--violet:#7b4bd6;--idle:#6a5890}
+:root[data-theme=light],:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow:hidden}
+h1,h2,h3{font-family:Anton,Impact,sans-serif;font-weight:400;letter-spacing:.01em;line-height:1.05;margin:0;text-wrap:balance}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+.top{height:56px;display:flex;align-items:center;gap:16px;padding:0 max(2vw,12px);background:#0c0518;border-bottom:1px solid var(--line);position:relative;z-index:5}
+.logo{font-family:Anton,sans-serif;font-size:26px;letter-spacing:.04em;background:linear-gradient(90deg,var(--pink),var(--orange) 60%,var(--sun));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+.top nav{display:flex;gap:6px;margin-left:auto}
+.top nav a{padding:9px 16px;border-radius:999px;color:var(--mute);text-decoration:none;font-weight:600;font-size:15px;border:1px solid transparent}
+.top nav a[aria-current]{color:#1a0b2e;background:var(--sun)}
+.top .live{font-size:13px;color:var(--mute);white-space:nowrap}
+.top .live b{color:var(--teal);font-size:15px}
+main{height:calc(100% - 56px)}
+.view{height:100%;display:none}.view.on{display:block}
+/* ---------- PLANEJADOR ---------- */
+#app.on{display:grid;grid-template-columns:84px minmax(0,1fr) 390px;height:100%}
+.tools{background:#0c0518;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:4px;padding:8px 6px;overflow-y:auto}
+.tools button{background:transparent;border:1px solid transparent;border-radius:12px;padding:8px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:var(--mute);min-height:58px}
+.tools button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tools button:hover{background:var(--deep);color:var(--ink)}
+.tools button.on{background:var(--pink);color:#fff}
+.tools hr{border:0;border-top:1px solid var(--line);margin:6px 4px;width:calc(100% - 8px)}
+.tools kbd{font:600 10px Inter;opacity:.7}
+.mapwrap{position:relative;overflow:hidden;background:#0b2440}
+#map{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;cursor:crosshair}
+#map.sel{cursor:default}#map.pan{cursor:grabbing}
+.hud{position:absolute;left:12px;top:12px;right:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;pointer-events:none}
+.hud>*{pointer-events:auto}
+.flowbox{background:rgba(12,5,24,.88);border:1px solid var(--line);border-radius:14px;padding:10px 16px}
+.flowbox small{color:var(--mute);font-size:13px;display:block}
+.flowbox b{font-family:Anton,sans-serif;font-weight:400;font-size:38px;line-height:1;color:var(--teal);white-space:nowrap}
+.flowbox b.warn{color:var(--pink)}
+.flowbox .sub{font-size:13px;color:var(--mute);margin-top:4px}
+.flowbox .sub b{font:700 14px Inter;color:var(--sun)}
+.seg{display:inline-flex;background:rgba(12,5,24,.88);border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{border:0;background:transparent;padding:8px 12px;border-radius:9px;font-size:14px;font-weight:600;color:var(--mute);min-height:38px}
+.seg button.on{background:var(--violet);color:#fff}
+.legend{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--mute)}
+.legend i{display:inline-block;width:18px;height:5px;border-radius:3px;vertical-align:middle;margin-right:5px}
+.hint{position:absolute;left:12px;bottom:12px;right:12px;display:flex;justify-content:space-between;gap:10px;pointer-events:none}
+.hint>div{background:rgba(12,5,24,.88);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px;pointer-events:auto}
+.hint .z{display:flex;gap:4px;padding:4px}
+.hint .z button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--deep);font-weight:700}
+.banner{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:var(--pink);color:#fff;font-weight:700;padding:8px 16px;border-radius:999px;font-size:14px;display:none;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis}
+.banner.on{display:block}.banner.b{background:var(--teal);color:#0b1a24}.banner.s{background:var(--sun);color:#24082f}
+.side{background:var(--deep);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px;border-bottom:1px solid var(--line);background:#160a2b}
+.tabs button{border:0;background:transparent;color:var(--mute);border-radius:8px;padding:7px 9px;font-size:13.5px;font-weight:600;min-height:36px}
+.tabs button.on{background:var(--panel);color:var(--sun)}
+.pane{padding:16px 16px 40px;overflow-y:auto;flex:1}
+.pane h3{font-size:24px;margin-bottom:6px}
+.pane p,.pane li{color:var(--mute);font-size:14.5px}
+.pane .note{font-size:13px;color:var(--mute);background:var(--panel);border-radius:10px;padding:10px 12px;margin:12px 0}
+label.f{display:block;font-size:13px;color:var(--mute);margin:12px 0 5px;font-weight:600}
+.in-t,select.in-t{width:100%;min-height:44px;background:#120822;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:16px}
+.chk{display:flex;align-items:center;gap:10px;margin:12px 0;font-size:15px;min-height:30px}
+.chk input{width:20px;height:20px;accent-color:var(--pink)}
+.b2{min-height:44px;padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-weight:600;font-size:14.5px}
+.b2.p{background:var(--pink);border-color:var(--pink);color:#fff}
+.b2.t{background:var(--teal);border-color:var(--teal);color:#0b1a24}
+.b2:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+th{text-align:left;color:var(--mute);font-weight:600;font-size:12.5px;border-bottom:1px solid var(--line);padding:6px 4px}
+td{border-bottom:1px solid rgba(58,37,102,.6);padding:7px 4px;vertical-align:top}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+tr.hl td{background:rgba(255,61,139,.14)}
+tr.best td{background:rgba(34,225,201,.16)}
+tr.cl{cursor:pointer}tr.cl:hover td{background:rgba(255,193,94,.1)}
+.res{background:var(--panel);border-radius:14px;padding:14px;margin-top:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res div small{display:block;color:var(--mute);font-size:12.5px}
+.res div b{font-family:Anton,sans-serif;font-weight:400;font-size:28px;white-space:nowrap}
+.res .wide{grid-column:1/-1}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--line);white-space:nowrap}
+.pill.s{background:var(--pink);color:#fff}.pill.o{background:var(--teal);color:#0b1a24}.pill.d{background:var(--sun);color:#24082f}
+.ok{color:var(--teal);font-weight:700}
+.path{font-size:13px;line-height:1.45;color:var(--ink)}
+.path .bk{color:var(--sun)}
+textarea.in-t{min-height:130px;font:12px/1.4 ui-monospace,monospace}
+.range{width:100%;accent-color:var(--pink)}
+svg text{font-family:Inter,sans-serif}
+.car{animation:dash linear infinite}
+@keyframes dash{to{stroke-dashoffset:-36}}
+.satpulse{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.car,.satpulse,.anim{animation:none!important}#pitch{scroll-behavior:auto}}
+@media (max-width:1100px){#app.on{grid-template-columns:72px minmax(0,1fr) 330px}}
+@media (max-width:860px){
+ body{overflow:auto}main{height:auto}.view.on{height:auto}
+ #pitch{height:auto;overflow:visible;scroll-snap-type:none}.slide{min-height:auto}.hero{min-height:92vh}
+ #app.on{display:flex;flex-direction:column}
+ .tools{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.tools button{min-width:64px}.tools hr{display:none}
+ .mapwrap{height:68vh}.side{border-left:0}.pane{overflow:visible}
+ .grid3,.stats,.finds,.howto{grid-template-columns:minmax(0,1fr)}
+ .legend{display:none}.pnav{display:none}.top .live{display:none}
+ .bigstat{position:relative;right:auto;bottom:auto;margin:0 max(6vw,18px) 28px;display:inline-block}
+}
+@media (max-width:600px){.hint>div:first-child,.legend,.flowbox .sub{display:none}.hint{justify-content:flex-end}.banner{white-space:normal;text-align:center;border-radius:14px}.seg button{padding:6px 8px;font-size:12.5px}.flowbox{padding:8px 12px}.flowbox b{font-size:30px}.hint .k{display:none}.logo{font-size:22px}.top nav a{padding:8px 11px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logo">NEONFLOW</div>
+  <span class="live">Fluxo máximo agora: <b id="liveFlow">—</b> veíc/h</span>
+  <span class="live" style="margin-left:auto">Traffic Planning · Ford-Fulkerson</span>
+</header>
+<main>
+<!-- ================= PLANEJADOR ================= -->
+<section id="app" class="view on" aria-label="Planejador de tráfego">
+  <div class="tools" id="tools"></div>
+  <div class="mapwrap">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gridP" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#3a2566" stroke-width=".6" opacity=".6"/></pattern>
+        <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="8" fill="#ff3d8b"/></pattern>
+        <radialGradient id="glowS"><stop offset="0" stop-color="#ff3d8b" stop-opacity=".6"/><stop offset="1" stop-color="#ff3d8b" stop-opacity="0"/></radialGradient>
+        <radialGradient id="glowT"><stop offset="0" stop-color="#22e1c9" stop-opacity=".55"/><stop offset="1" stop-color="#22e1c9" stop-opacity="0"/></radialGradient>
+      </defs>
+      <g id="vp"><g id="gBase"></g><g id="gBg"></g><g id="gRoads"></g><g id="gLabels"></g><g id="gNodes"></g><line id="prev" pointer-events="none" stroke="#ffc15e" stroke-width="3" stroke-dasharray="8 6" visibility="hidden"/></g>
+    </svg>
+    <div class="hud">
+      <div class="flowbox"><small id="fbT">Fluxo máximo (origem → destino)</small><b id="fbV">—</b> <span style="color:var(--mute)">veíc/h</span><div class="sub" id="fbS"></div><div class="legend"><span><i style="background:var(--idle)"></i>sem fluxo</span><span><i style="background:var(--teal)"></i>&lt; 60%</span><span><i style="background:var(--sun)"></i>60–90%</span><span><i style="background:var(--orange)"></i>90–99%</span><span><i style="background:var(--pink)"></i>saturada (c<sub>f</sub>=0)</span></div></div>
+      <div class="seg" role="group" aria-label="Busca do caminho aumentante"><button data-m="dfs">DFS · Ford-Fulkerson</button><button data-m="bfs">BFS · Edmonds-Karp</button></div>
+      
+    </div>
+    <div class="banner" id="banner"></div>
+    <div class="hint"><div id="hint"></div><div class="z"><button id="zIn" aria-label="Aproximar">+</button><button id="zOut" aria-label="Afastar">−</button><button id="zFit" aria-label="Enquadrar mapa">⤢</button></div></div>
+  </div>
+  <aside class="side">
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="pane" id="pane"></div>
+  </aside>
+</section>
+</main>
+<input type="file" id="fileBg" accept="image/*" hidden>
+<input type="file" id="fileJson" accept=".json,application/json" hidden>
+<script>
+/* ===== NÚCLEO: Ford-Fulkerson do zero, com rede residual explícita ===== */
+const TIPOS = {
+  local: { nome: 'Via local (1 faixa)', cap: 600 },
+  col:   { nome: 'Coletora (2 faixas)', cap: 1200 },
+  av2:   { nome: 'Avenida 2 faixas', cap: 1600 },
+  av3:   { nome: 'Avenida 3 faixas', cap: 2400 },
+  exp:   { nome: 'Via expressa / ponte (4 faixas)', cap: 3200 },
+  custom:{ nome: 'Personalizada', cap: null }
+};
+const INF = 1e9;
+
+/* Cada rua (road) vira 1 arco (mão única) ou 2 arcos (mão dupla), cada um com c(u,v). */
+function arcosDe(model, over) {
+  over = over || {};
+  const out = [];
+  for (const r of model.roads) {
+    const f = r.id + '>', b = r.id + '<';
+    out.push({ id: f, road: r.id, u: r.u, v: r.v, cap: f in over ? over[f] : r.cap });
+    if (r.twoWay) out.push({ id: b, road: r.id, u: r.v, v: r.u, cap: b in over ? over[b] : r.cap });
+  }
+  return out;
+}
+
+/* Rede residual: lista de adjacência com par (aresta, aresta reversa).
+   Para cada arco u->v com c(u,v) cria-se u->v (cap c) e v->u (cap 0).
+   Residual c_f(e) = cap(e) - flow(e). Na reversa, flow = -f, então c_f = f. */
+class RedeResidual {
+  constructor() { this.adj = new Map(); }
+  no(x) { if (!this.adj.has(x)) this.adj.set(x, []); return this.adj.get(x); }
+  add(u, v, cap, arc) {
+    const a = { to: v, cap, flow: 0, arc, rev: null }, b = { to: u, cap: 0, flow: 0, arc: null, rev: a };
+    a.rev = b; this.no(u).push(a); this.no(v).push(b);
+  }
+}
+
+function caminhoDFS(R, s, t) {
+  const vis = new Set(), par = new Map();
+  const dfs = u => {
+    if (u === t) return true;
+    vis.add(u);
+    for (const e of R.no(u)) if (e.cap - e.flow > 0 && !vis.has(e.to)) {
+      par.set(e.to, e); if (dfs(e.to)) return true;
+    }
+    return false;
+  };
+  if (!dfs(s)) return null;
+  const p = []; let v = t;
+  while (v !== s) { const e = par.get(v); p.push(e); v = e.rev.to; }
+  return p.reverse();
+}
+
+function caminhoBFS(R, s, t) {
+  const par = new Map([[s, null]]), q = [s];
+  while (q.length && !par.has(t)) {
+    const u = q.shift();
+    for (const e of R.no(u)) if (e.cap - e.flow > 0 && !par.has(e.to)) { par.set(e.to, e); q.push(e.to); }
+  }
+  if (!par.has(t)) return null;
+  const p = []; let v = t;
+  while (v !== s) { const e = par.get(v); p.push(e); v = e.rev.to; }
+  return p.reverse();
+}
+
+/* Calcula o fluxo máximo. opts: {over, metodo:'dfs'|'bfs', historico:true} */
+function fluxoMaximo(model, opts) {
+  opts = opts || {};
+  const S = '__S', T = '__T';
+  const arcs = arcosDe(model, opts.over);
+  const R = new RedeResidual();
+  const fw = new Map();
+  for (const a of arcs) if (a.cap > 0 && a.u !== a.v) { R.add(a.u, a.v, a.cap, a.id); fw.set(a.id, R.no(a.u)[R.no(a.u).length - 1]); }
+  const fontes = model.nodes.filter(n => n.role === 'src'), sumid = model.nodes.filter(n => n.role === 'snk');
+  for (const n of fontes) R.add(S, n.id, INF, null);
+  for (const n of sumid) R.add(n.id, T, INF, null);
+  const busca = opts.metodo === 'bfs' ? caminhoBFS : caminhoDFS;
+  let total = 0; const hist = [];
+  if (fontes.length && sumid.length) {
+    let p, guard = 0;
+    while ((p = busca(R, S, T)) && guard++ < 5000) {
+      let b = Infinity; for (const e of p) b = Math.min(b, e.cap - e.flow);    // gargalo do caminho
+      if (b >= INF) { total = Infinity; break; }                                  // origem ligada direto ao destino
+      for (const e of p) { e.flow += b; e.rev.flow -= b; }                        // aumenta e atualiza a residual
+      total += b;
+      if (opts.historico) {
+        const snap = {}; for (const [id, e] of fw) snap[id] = e.flow;
+        hist.push({ b, nos: [p[0].rev.to, ...p.map(e => e.to)].filter(x => x !== S && x !== T),
+                    passos: p.filter(e => e.arc !== null || e.rev.arc !== null).map(e => e.arc !== null ? { arc: e.arc, dir: 1 } : { arc: e.rev.arc, dir: -1 }),
+                    total, snap });
+      }
+    }
+  }
+  // corte mínimo: vértices alcançáveis a partir de S na residual final
+  const ladoS = new Set([S]), st = [S];
+  while (st.length) { const u = st.pop(); for (const e of R.no(u)) if (e.cap - e.flow > 0 && !ladoS.has(e.to)) { ladoS.add(e.to); st.push(e.to); } }
+  const flow = {}; for (const a of arcs) flow[a.id] = fw.has(a.id) ? fw.get(a.id).flow : 0;
+  // em ruas de mão dupla, cancela fluxos opostos (o fluxo continua válido e máximo)
+  for (const r of model.roads) if (r.twoWay) {
+    const m = Math.min(flow[r.id + '>'], flow[r.id + '<']);
+    if (m > 0) { flow[r.id + '>'] -= m; flow[r.id + '<'] -= m; }
+  }
+  const lista = arcs.map(a => ({ ...a, flow: flow[a.id], res: a.cap - flow[a.id], util: a.cap > 0 ? flow[a.id] / a.cap : 0 }));
+  return {
+    total, arcs: lista, hist,
+    saturadas: lista.filter(a => a.cap > 0 && a.res === 0),
+    corte: lista.filter(a => a.cap > 0 && ladoS.has(a.u) && !ladoS.has(a.v)),
+    ladoS, nFontes: fontes.length, nSumid: sumid.length
+  };
+}
+
+/* Cenário A: uma ou várias ruas afetadas ao mesmo tempo.
+   afetadas = [{ road, modo: 'interditar' | 'reduzir', pct }]  (pct = % de redução, só no modo 'reduzir')
+   Por compatibilidade também aceita cenarioA(model, roadId, fator, metodo). */
+function overDeAfetadas(model, afetadas) {
+  const over = {};
+  for (const a of afetadas) {
+    const r = model.roads.find(x => x.id === a.road); if (!r) continue;
+    const fator = a.modo === 'interditar' ? 0 : Math.max(0, 1 - (a.pct ?? 50) / 100);
+    over[r.id + '>'] = Math.floor(r.cap * fator);
+    if (r.twoWay) over[r.id + '<'] = Math.floor(r.cap * fator);
+  }
+  return over;
+}
+function cenarioA(model, afetadas, a3, a4) {
+  let metodo = a3;
+  if (typeof afetadas === 'string') { afetadas = [{ road: afetadas, modo: a3 === 0 ? 'interditar' : 'reduzir', pct: 100 * (1 - a3) }]; metodo = a4; }
+  const base = fluxoMaximo(model, { metodo }).total;
+  const depois = fluxoMaximo(model, { over: overDeAfetadas(model, afetadas), metodo }).total;
+  return { antes: base, depois, perda: base - depois, perdaPct: base ? 100 * (base - depois) / base : 0 };
+}
+
+/* Cenário B: testa +X em cada arco saturado e recomenda o de maior ganho real */
+function cenarioB(model, X, metodo) {
+  const base = fluxoMaximo(model, { metodo });
+  const op = base.saturadas.map(a => {
+    const novo = fluxoMaximo(model, { over: { [a.id]: a.cap + X }, metodo }).total;
+    return { arc: a, novo, ganho: novo - base.total };
+  }).sort((p, q) => q.ganho - p.ganho);
+  return { base: base.total, opcoes: op, melhor: op.length && op[0].ganho > 0 ? op[0] : null };
+}
+
+if (typeof module !== 'undefined') module.exports = { TIPOS, fluxoMaximo, cenarioA, cenarioB, arcosDe, overDeAfetadas };
+
+/* Recorte de South Beach, Miami Beach (FL) — a cidade real que inspira a Vice City.
+   Modelo esquemático: nomes e ordem das ruas reais; posições, faixas e sentidos aproximados
+   (conferir no Google Maps / OpenStreetMap). Capacidades estimadas por número de faixas. */
+const MAPA_PADRAO = (() => {
+  const X = { alton: 380, meridian: 500, washington: 620, collins: 720, ocean: 790 };
+  const Y = { s17: 240, s14: 390, s10: 550, s5: 720 };
+  const nomesAv = { alton: 'Alton Rd', meridian: 'Meridian Av', washington: 'Washington Av', collins: 'Collins Av', ocean: 'Ocean Dr' };
+  const nomesRua = { s17: '17th St', s14: '14th St', s10: '10th St', s5: '5th St' };
+  const nodes = [], roads = [];
+  const id = (a, s) => a[0] + s.slice(1);
+  for (const a of ['alton', 'meridian', 'washington', 'collins']) for (const s of ['s17', 's14', 's10', 's5'])
+    nodes.push({ id: id(a, s), name: nomesAv[a] + ' × ' + nomesRua[s], x: X[a], y: Y[s], role: '' });
+  for (const s of ['s14', 's10', 's5']) nodes.push({ id: id('ocean', s), name: 'Ocean Dr × ' + nomesRua[s], x: X.ocean, y: Y[s], role: '' });
+  nodes.push(
+    { id: 'cc', name: 'Centro de Convenções (evento)', x: 560, y: 160, role: 'src' },
+    { id: 'dm', name: 'Dade Blvd × Meridian Av', x: 500, y: 130, role: '' },
+    { id: 'da', name: 'Dade Blvd × Alton Rd', x: 380, y: 130, role: '' },
+    { id: 'dw', name: 'Dade Blvd × West Av', x: 310, y: 150, role: '' },
+    { id: 'wi', name: 'Watson Island', x: 190, y: 750, role: '' },
+    { id: 'ven', name: 'Venetian Causeway → Downtown', x: 70, y: 160, role: 'snk' },
+    { id: 'mac', name: 'MacArthur Causeway → I-395', x: 70, y: 770, role: 'snk' },
+    { id: 'n1', name: 'Alton Rd norte → I-195', x: 380, y: 40, role: 'snk' },
+    { id: 'n2', name: 'Collins Av → North Beach', x: 720, y: 40, role: 'snk' }
+  );
+  let k = 1;
+  const R = (u, v, tipo, cap, twoWay, name) => roads.push({ id: 'r' + k++, u, v, tipo, cap, twoWay, name });
+  // Avenidas norte-sul
+  R('a5', 'a10', 'av2', 1600, true, 'Alton Rd'); R('a10', 'a14', 'av2', 1600, true, 'Alton Rd');
+  R('a14', 'a17', 'av2', 1600, true, 'Alton Rd'); R('a17', 'da', 'av2', 1600, true, 'Alton Rd');
+  R('da', 'n1', 'av2', 1600, true, 'Alton Rd');
+  R('m5', 'm10', 'local', 600, true, 'Meridian Av'); R('m10', 'm14', 'local', 600, true, 'Meridian Av');
+  R('m14', 'm17', 'local', 600, true, 'Meridian Av'); R('m17', 'dm', 'local', 600, true, 'Meridian Av');
+  R('w5', 'w10', 'av2', 1600, true, 'Washington Av'); R('w10', 'w14', 'av2', 1600, true, 'Washington Av');
+  R('w14', 'w17', 'av2', 1600, true, 'Washington Av');
+  R('c5', 'c10', 'av3', 2400, false, 'Collins Av'); R('c10', 'c14', 'av3', 2400, false, 'Collins Av');
+  R('c14', 'c17', 'av3', 2400, false, 'Collins Av'); R('c17', 'n2', 'av3', 2400, false, 'Collins Av');
+  R('o5', 'o10', 'local', 600, true, 'Ocean Dr'); R('o10', 'o14', 'local', 600, true, 'Ocean Dr');
+  // Ruas leste-oeste
+  R('a17', 'm17', 'av2', 1600, true, '17th St'); R('m17', 'w17', 'av2', 1600, true, '17th St'); R('w17', 'c17', 'av2', 1600, true, '17th St');
+  R('a14', 'm14', 'local', 600, true, '14th St'); R('m14', 'w14', 'local', 600, true, '14th St');
+  R('w14', 'c14', 'local', 600, true, '14th St'); R('c14', 'o14', 'local', 600, true, '14th St');
+  R('a10', 'm10', 'local', 600, true, '10th St'); R('m10', 'w10', 'local', 600, true, '10th St');
+  R('w10', 'c10', 'local', 600, true, '10th St'); R('c10', 'o10', 'local', 600, true, '10th St');
+  R('a5', 'm5', 'av3', 2400, true, '5th St'); R('m5', 'w5', 'av3', 2400, true, '5th St');
+  R('w5', 'c5', 'av3', 2400, true, '5th St'); R('c5', 'o5', 'local', 600, true, '5th St');
+  R('dw', 'da', 'av2', 1600, true, 'Dade Blvd'); R('da', 'dm', 'av2', 1600, true, 'Dade Blvd');
+  // Saídas do evento (mão única) e pontes
+  R('cc', 'dm', 'exp', 3200, false, 'Convention Center Dr'); R('cc', 'm17', 'exp', 3200, false, 'Saída oeste do centro');
+  R('cc', 'w17', 'exp', 3200, false, 'Saída leste do centro');
+  R('dw', 'ven', 'local', 600, true, 'Venetian Causeway');
+  R('a5', 'wi', 'exp', 3200, true, 'MacArthur Causeway'); R('wi', 'mac', 'exp', 3200, true, 'MacArthur Causeway');
+  return { nome: 'South Beach, Miami Beach', nodes, roads, evento: 12000 };
+})();
+if (typeof module !== 'undefined') module.exports = { MAPA_PADRAO };
+
+{
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = n => n === Infinity ? '∞' : Math.round(n).toLocaleString('pt-BR');
+const pct = x => (x * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+const clone = o => JSON.parse(JSON.stringify(o));
+const COR = { idle: '#6a5890', teal: '#22e1c9', sun: '#ffc15e', orange: '#ff8a3d', pink: '#ff3d8b' };
+const KEY = 'neonflow-mapa-v1';
+
+let M = (() => { try { const s = localStorage.getItem(KEY); if (s) { const m = JSON.parse(s); if (m && m.nodes && m.roads) return m; } } catch (e) {} return clone(MAPA_PADRAO); })();
+const st = { tool: 'sel', sel: null, metodo: 'dfs', pend: null, cen: null, passo: null, residual: false, tab: 'insp',
+  preset: { tipo: 'local', cap: 600, twoWay: true }, bg: null, bgOp: 0.55, vb: { x: -20, y: -10, w: 1040, h: 880 },
+  cenA: { lista: [], add: null, res: null }, cenB: { X: 800, res: null }, rank: null, play: null };
+let RES = null;
+const undoS = [], redoS = [];
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(M)); } catch (e) {} };
+function snap() { undoS.push(JSON.stringify(M)); if (undoS.length > 100) undoS.shift(); redoS.length = 0; }
+function commit(keepScen) { if (!keepScen) { st.cen = null; st.cenA.res = null; st.cenB.res = null; st.rank = null; } st.passo = null; save(); recompute(); renderAll(); }
+const node = id => M.nodes.find(n => n.id === id);
+const road = id => M.roads.find(r => r.id === id);
+const nm = id => { const n = node(id); return n ? n.name : id; };
+const curto = id => { const n = nm(id); return n.length > 26 ? n.replace(' × ', '×').slice(0, 26) + '…' : n; };
+function arcLabel(a) { const r = road(a.road); return (r ? r.name : a.road) + ' (' + curto(a.u) + ' → ' + curto(a.v) + ')'; }
+let nid = 0; const newId = p => { let id; do { id = p + (++nid); } while (M.nodes.some(n => n.id === id) || M.roads.some(r => r.id === id)); return id; };
+
+/* ---------------- cálculo ---------------- */
+function recompute() {
+  RES = fluxoMaximo(M, { metodo: st.metodo, historico: true });
+  if (st.cen && st.cen.tipo === 'A') {
+    st.cen.lista = st.cen.lista.filter(x => road(x.road));
+    if (!st.cen.lista.length) st.cen = null;
+    else st.cen.view = fluxoMaximo(M, { over: overDeAfetadas(M, st.cen.lista), metodo: st.metodo });
+  }
+}
+function view() {
+  if (st.passo !== null) {
+    const h = RES.hist[st.passo - 1];
+    const arcs = arcosDe(M).map(a => { const f = h ? h.snap[a.id] || 0 : 0; return { ...a, flow: f, res: a.cap - f, util: a.cap ? f / a.cap : 0 }; });
+    return { arcs, total: h ? h.total : 0, path: h ? new Set(h.passos.map(p => p.arc)) : new Set(), corte: new Set() };
+  }
+  const v = st.cen && st.cen.tipo === 'A' ? st.cen.view : RES;
+  return { arcs: v.arcs, total: v.total, path: new Set(), corte: new Set(v.corte.map(a => a.id)) };
+}
+const corDe = a => a.cap <= 0 ? COR.pink : a.flow <= 0 ? COR.idle : a.res === 0 ? COR.pink : a.util >= .9 ? COR.orange : a.util >= .6 ? COR.sun : COR.teal;
+const larg = c => Math.min(12, 2.4 + c / 380);
+
+/* ---------------- mapa ---------------- */
+const svg = $('#map');
+function applyVB() { const v = st.vb; svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); }
+function fit() {
+  const r = svg.getBoundingClientRect(), cw = r.width || 900, ch = r.height || 700, small = cw < 600;
+  const mt = small ? 120 : 150, mb = small ? 70 : 76, ml = 24, mr = 24;
+  if (!M.nodes.length) { const k = 1000 / Math.max(200, cw - ml - mr); st.vb = { x: -ml * k, y: -mt * k, w: cw * k, h: ch * k }; applyVB(); return; }
+  const pad = 50, x0 = Math.min(...M.nodes.map(n => n.x)) - pad, x1 = Math.max(...M.nodes.map(n => n.x)) + pad, y0 = Math.min(...M.nodes.map(n => n.y)) - pad, y1 = Math.max(...M.nodes.map(n => n.y)) + pad;
+  const W = x1 - x0, H = y1 - y0, aw = Math.max(120, cw - ml - mr), ah = Math.max(120, ch - mt - mb), k = Math.max(W / aw, H / ah);
+  st.vb = { x: x0 - ml * k - (aw * k - W) / 2, y: y0 - mt * k - (ah * k - H) / 2, w: cw * k, h: ch * k }; applyVB();
+}
+function pt(e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return { x: q.x, y: q.y }; }
+
+function drawBase() {
+  const g = $('#gBase');
+  if (M.fundo === 'nenhum') { g.innerHTML = `<rect x="-3000" y="-3000" width="7000" height="7000" fill="#140a26"/><rect x="-3000" y="-3000" width="7000" height="7000" fill="url(#gridP)"/>`; return; }
+  g.innerHTML = `<rect x="-3000" y="-3000" width="7000" height="7000" fill="#0d2a47"/>
+  <path d="M-3000 -3000H110L122 250L100 500L124 800L96 2000H-3000Z" fill="#1f1238"/>
+  <path d="M296 -400H872L866 300L852 600L836 800L782 846L334 836L300 784L316 650L294 500L306 300L288 150Z" fill="#23143f"/>
+  <path d="M296 -400H872L866 300L852 600L836 800L782 846L334 836L300 784L316 650L294 500L306 300L288 150Z" fill="url(#gridP)"/>
+  <path d="M872 -400L866 300L852 600L836 800L782 846" fill="none" stroke="#e7b46d" stroke-width="10" opacity=".55"/>
+  <path d="M300 104C420 96 520 112 640 100S760 86 800 70" fill="none" stroke="#0d2a47" stroke-width="12"/>
+  <ellipse cx="190" cy="752" rx="58" ry="34" fill="#23143f"/>
+  <g fill="#23143f"><ellipse cx="160" cy="160" rx="22" ry="12"/><ellipse cx="210" cy="160" rx="22" ry="12"/><ellipse cx="258" cy="160" rx="20" ry="11"/></g>
+  <g fill="#8fb7d9" opacity=".55" font-style="italic" font-size="22" font-weight="600"><text x="200" y="470" text-anchor="middle" transform="rotate(-90 200 470)">Biscayne Bay</text><text x="940" y="470" text-anchor="middle" transform="rotate(90 940 470)">Oceano Atlântico</text></g>
+  <text x="56" y="470" text-anchor="middle" transform="rotate(-90 56 470)" fill="#c9b6e4" opacity=".5" font-size="20" font-weight="700">MIAMI · DOWNTOWN</text>
+  <text x="575" y="820" text-anchor="middle" fill="#c9b6e4" opacity=".45" font-size="18" font-weight="700">SOUTH BEACH · MIAMI BEACH</text>`;
+}
+function drawBg() {
+  $('#gBg').innerHTML = st.bg ? `<image href="${st.bg.url}" x="${st.bg.x}" y="${st.bg.y}" width="${st.bg.w}" height="${st.bg.h}" opacity="${st.bgOp}" preserveAspectRatio="none"/>` : '';
+}
+
+function drawMap() {
+  const V = view(), byId = new Map(V.arcs.map(a => [a.id, a]));
+  let roads = '', labels = '';
+  const NR = 9;
+  for (const r of M.roads) {
+    const A = node(r.u), B = node(r.v); if (!A || !B) continue;
+    const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const selR = st.sel && st.sel.t === 'road' && st.sel.id === r.id;
+    const scenA = st.cen && st.cen.tipo === 'A' ? st.cen.lista.find(x => x.road === r.id) : null, scenR = !!scenA;
+    const w = larg(r.cap), off = r.twoWay ? w / 2 + 1.6 : 0;
+    roads += `<g data-road="${esc(r.id)}">`;
+    roads += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${selR ? '#ffc15e' : '#0a0514'}" stroke-width="${(r.twoWay ? 2 * w + 3.2 : w) + (selR ? 9 : 5)}" stroke-linecap="round" opacity="${selR ? .9 : .85}"/>`;
+    const ids = r.twoWay ? [[r.id + '>', 1], [r.id + '<', -1]] : [[r.id + '>', 1]];
+    for (const [aid, s] of ids) {
+      const a = byId.get(aid); if (!a) continue;
+      const fx = s > 0 ? A : B, tx = s > 0 ? B : A, vx = s * ux, vy = s * uy;
+      const ox = nx * off * s, oy = ny * off * s;      // mão inglesa? não: deslocamento à direita do sentido
+      const x1 = fx.x + vx * NR + ox, y1 = fx.y + vy * NR + oy, x2 = tx.x - vx * NR + ox, y2 = tx.y - vy * NR + oy;
+      const inPath = V.path.has(aid), inCut = V.corte.has(aid);
+      let col = corDe(a);
+      if (st.residual && st.passo === null) {
+        // rede residual: arco direto com c_f = c − f (turquesa) e arco reverso com f (violeta)
+        const cf = a.cap - a.flow;
+        if (cf > 0) roads += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${COR.teal}" stroke-width="${larg(cf)}" stroke-linecap="round" opacity=".85"/>` + arrow(x1, y1, x2, y2, COR.teal, .62);
+        if (a.flow > 0) { const k = 6 * s; roads += `<line x1="${x2 - nx * k}" y1="${y2 - ny * k}" x2="${x1 - nx * k}" y2="${y1 - ny * k}" stroke="#a679ff" stroke-width="${larg(a.flow) * .7}" stroke-dasharray="6 4"/>` + arrow(x2 - nx * k, y2 - ny * k, x1 - nx * k, y1 - ny * k, '#a679ff', .4); }
+        continue;
+      }
+      if (a.cap <= 0) roads += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="url(#hatch)" stroke-width="${w + 2}"/>`;
+      else roads += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${w}" stroke-linecap="round" ${a.res === 0 && a.flow > 0 && !inPath ? 'class="satpulse"' : ''}/>`;
+      if (inPath) roads += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff" stroke-width="${w + 6}" stroke-linecap="round" opacity=".35"/>`;
+      if (inCut) roads += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff" stroke-width="1.6" stroke-dasharray="3 4"/>`;
+      if (a.flow > 0) roads += `<line class="car" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff4f9" stroke-width="${Math.max(1.6, w * .38)}" stroke-dasharray="3 15" stroke-linecap="round" opacity=".85" style="animation-duration:${(2.2 - 1.6 * a.util).toFixed(2)}s"/>`;
+      roads += arrow(x1, y1, x2, y2, a.cap <= 0 ? COR.pink : '#fff4f9', .5);
+      if (a.flow > 0 || selR || scenR) {
+        const mx = (x1 + x2) / 2 + nx * s * (w + 9), my = (y1 + y2) / 2 + ny * s * (w + 9);
+        labels += `<text x="${mx.toFixed(1)}" y="${(my + 3.5).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${a.res === 0 && a.cap > 0 ? COR.pink : '#fff4f9'}" stroke="#0a0514" stroke-width="3.2" paint-order="stroke">${fmt(a.flow)}/${fmt(a.cap)}</text>`;
+      }
+    }
+    if (scenR) { const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+      roads += scenA.modo === 'interditar'
+        ? `<g transform="translate(${mx} ${my})"><circle r="13" fill="#ff3d8b" stroke="#fff" stroke-width="2"/><path d="M-5-5L5 5M5-5L-5 5" stroke="#fff" stroke-width="3" stroke-linecap="round"/></g>`
+        : `<g transform="translate(${mx} ${my})"><rect x="-22" y="-11" width="44" height="22" rx="11" fill="#ff8a3d" stroke="#fff" stroke-width="2"/><text y="4.5" text-anchor="middle" font-size="12" font-weight="800" fill="#24082f">−${Math.round(scenA.pct)}%</text></g>`; }
+    else if (st.tab === 'a' && !st.cen && st.cenA.lista.some(x => x.road === r.id)) { const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2; roads += `<circle cx="${mx}" cy="${my}" r="11" fill="none" stroke="#ffc15e" stroke-width="3" stroke-dasharray="4 3"/>`; }
+    if (st.cen && st.cen.tipo === 'B' && st.cenB.res && st.cenB.res.melhor && st.cenB.res.melhor.arc.road === r.id) {
+      const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2; roads += `<g transform="translate(${mx} ${my})"><circle r="14" fill="#22e1c9" stroke="#fff" stroke-width="2"/><path d="M0-7V7M-7 0H7" stroke="#0b1a24" stroke-width="3.4" stroke-linecap="round"/></g>`;
+    }
+    roads += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="transparent" stroke-width="22"/></g>`;
+  }
+  $('#gRoads').innerHTML = roads; $('#gLabels').innerHTML = labels;
+  let nodes = '';
+  for (const n of M.nodes) {
+    const sel = st.sel && st.sel.t === 'node' && st.sel.id === n.id, pend = st.pend === n.id;
+    const inPath = st.passo !== null && RES.hist[st.passo - 1] && RES.hist[st.passo - 1].nos.includes(n.id);
+    nodes += `<g data-node="${esc(n.id)}" transform="translate(${n.x} ${n.y})"><title>${esc(n.name)}</title><circle r="18" fill="transparent"/>`;
+    if (n.role === 'src') nodes += `<circle r="34" fill="url(#glowS)"/><circle r="15" fill="#ff3d8b" stroke="#fff" stroke-width="3"/><text y="5" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">s</text>`;
+    else if (n.role === 'snk') nodes += `<circle r="32" fill="url(#glowT)"/><circle r="14" fill="#22e1c9" stroke="#fff" stroke-width="3"/><text y="5" text-anchor="middle" font-size="13" font-weight="800" fill="#0b1a24">t</text>`;
+    else nodes += `<circle r="7.5" fill="${inPath ? '#fff' : '#1c0e36'}" stroke="${inPath ? '#ffc15e' : '#c9b6e4'}" stroke-width="2.4"/>`;
+    if (sel || pend) nodes += `<circle r="${n.role ? 21 : 13}" fill="none" stroke="#ffc15e" stroke-width="3" ${pend ? 'stroke-dasharray="5 4"' : ''}/>`;
+    if (n.role) nodes += `<text x="20" y="-16" font-size="12.5" font-weight="700" fill="${n.role === 'src' ? '#ff9cc2' : '#9ff4e8'}" stroke="#0a0514" stroke-width="3.5" paint-order="stroke">${esc(n.name)}</text>`;
+    nodes += `</g>`;
+  }
+  $('#gNodes').innerHTML = nodes;
+}
+function arrow(x1, y1, x2, y2, c, t) {
+  const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t, ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+  return `<path d="M-5-4.5L3 0L-5 4.5" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${ang.toFixed(1)})" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".95" pointer-events="none"/>`;
+}
+
+/* ---------------- HUD ---------------- */
+function tempo(veic, f) { if (!f || f === Infinity) return '—'; const h = veic / f, hh = Math.floor(h), mm = Math.round((h - hh) * 60); return hh ? `${hh}h${String(mm).padStart(2, '0')}` : `${mm} min`; }
+function hud() {
+  const V = view();
+  let t = 'Fluxo máximo (origem → destino)';
+  if (st.passo !== null) t = `Passo ${st.passo} de ${RES.hist.length} — fluxo acumulado`;
+  else if (st.cen && st.cen.tipo === 'A') t = st.cen.lista.length === 1 ? `Cenário A — ${road(st.cen.lista[0].road).name} ${st.cen.lista[0].modo === 'interditar' ? 'interditada' : 'com fluxo reduzido em ' + Math.round(st.cen.lista[0].pct) + '%'}` : `Cenário A — ${st.cen.lista.length} ruas afetadas ao mesmo tempo`;
+  $('#fbT').textContent = t;
+  const b = $('#fbV'); b.textContent = fmt(V.total); b.classList.toggle('warn', !!(st.cen && st.cen.tipo === 'A'));
+  const nS = M.nodes.filter(n => n.role === 'src').length, nT = M.nodes.filter(n => n.role === 'snk').length;
+  $('#fbS').innerHTML = !nS || !nT ? `<b style="color:var(--pink)">Marque ao menos uma origem (s) e um destino (t).</b>` :
+    st.cen && st.cen.tipo === 'A' ? `Antes: <b>${fmt(RES.total)}</b> · perda <b>${pct(RES.total ? (RES.total - V.total) / RES.total : 0)}</b>` :
+    `${RES.saturadas.length} vias saturadas · ${RES.hist.length} caminhos aumentantes · esvaziar ${fmt(M.evento || 0)} carros: <b>${tempo(M.evento || 0, RES.total)}</b>`;
+  $$('.seg button').forEach(x => x.classList.toggle('on', x.dataset.m === st.metodo));
+  $('#liveFlow').textContent = fmt(RES.total);
+  const bn = $('#banner'); bn.className = 'banner';
+  if (st.residual && st.passo === null) { bn.textContent = 'Vendo a REDE RESIDUAL: turquesa = cf(u,v) = c − f · violeta tracejado = arco reverso com f'; bn.classList.add('on', 'b'); }
+  else if (st.passo !== null) { bn.textContent = st.passo === 0 ? 'Passo a passo: fluxo zero. Avance para o 1º caminho aumentante.' : `Caminho ${st.passo}: gargalo de ${fmt(RES.hist[st.passo - 1].b)} veíc/h empurrado (em branco no mapa)`; bn.classList.add('on', 's'); }
+  else if (st.cen && st.cen.tipo === 'B' && st.cenB.res && st.cenB.res.melhor) { bn.textContent = `Obra recomendada: ${arcLabel(st.cenB.res.melhor.arc)} → +${fmt(st.cenB.res.melhor.ganho)} veíc/h`; bn.classList.add('on', 'b'); }
+  else if (st.cen && st.cen.tipo === 'A') { bn.textContent = `Simulação ativa — perda de ${pct(RES.total ? (RES.total - V.total) / RES.total : 0)} no escoamento`; bn.classList.add('on'); }
+}
+
+/* ---------------- ferramentas ---------------- */
+const ICON = {
+  sel: '<path d="M5 3l14 8-6 2-2 6z"/>', rua: '<path d="M4 20L10 4M20 20L14 4M12 6v2M12 11v2M12 16v2"/>', cruz: '<circle cx="12" cy="12" r="4"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/>',
+  src: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12l4-4 4 4"/>', snk: '<circle cx="12" cy="12" r="8"/><path d="M8 12h8M12 8l4 4-4 4"/>', del: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>', redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/>', res: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>'
+};
+const TOOLS = [['sel', 'Mover', 'V'], ['rua', 'Nova rua', 'R'], ['cruz', 'Cruzam.', 'C'], ['src', 'Origem', 'O'], ['snk', 'Destino', 'D'], ['del', 'Apagar', 'X']];
+const HINT = {
+  sel: 'Clique numa rua ou cruzamento para editar. Arraste cruzamentos para mover; arraste o fundo para navegar; roda do mouse = zoom.',
+  rua: 'Clique em um cruzamento (ou no vazio) e depois em outro: a rua é criada. Continue clicando para emendar ruas. Esc encerra.',
+  cruz: 'Clique no vazio para criar um cruzamento, ou em cima de uma rua para dividi-la com um novo cruzamento.',
+  src: 'Clique num cruzamento para marcá-lo como ORIGEM (s) dos veículos. Clique de novo para desmarcar.',
+  snk: 'Clique num cruzamento para marcá-lo como DESTINO (t). Pode haver vários: usamos um superdestino.',
+  del: 'Clique numa rua ou cruzamento para apagar. Ctrl+Z desfaz.'
+};
+function renderTools() {
+  $('#tools').innerHTML = TOOLS.map(([k, l, kb]) => `<button data-tool="${k}" class="${st.tool === k ? 'on' : ''}" title="${l} (${kb})"><svg viewBox="0 0 24 24">${ICON[k]}</svg>${l}<kbd>${kb}</kbd></button>`).join('') +
+    `<hr><button data-act="undo" title="Desfazer (Ctrl+Z)"><svg viewBox="0 0 24 24">${ICON.undo}</svg>Desfazer</button><button data-act="redo" title="Refazer (Ctrl+Y)"><svg viewBox="0 0 24 24">${ICON.redo}</svg>Refazer</button>` +
+    `<button data-act="res" class="${st.residual ? 'on' : ''}" title="Mostrar rede residual"><svg viewBox="0 0 24 24">${ICON.res}</svg>Residual</button>`;
+  $('#hint').textContent = st.pend ? 'Rua em construção: clique no próximo cruzamento (ou no vazio). Esc ou clique no mesmo ponto para parar.' : HINT[st.tool];
+  svg.classList.toggle('sel', st.tool === 'sel');
+}
+function setTool(t) { st.tool = t; st.pend = null; $('#prev').setAttribute('visibility', 'hidden'); renderTools(); drawMap(); }
+
+function addNode(p) { const n = { id: newId('n'), name: 'Cruzamento ' + (M.nodes.length + 1), x: Math.round(p.x), y: Math.round(p.y), role: '' }; M.nodes.push(n); return n; }
+function addRoad(u, v) {
+  if (u === v) return null;
+  const ex = M.roads.find(r => (r.u === u && r.v === v) || (r.u === v && r.v === u));
+  if (ex) { if (!ex.twoWay && ex.u === v) ex.twoWay = true; return ex; }
+  const pr = st.preset, r = { id: newId('r'), u, v, tipo: pr.tipo, cap: pr.cap, twoWay: pr.twoWay, name: 'Rua nova ' + (M.roads.length + 1) };
+  M.roads.push(r); return r;
+}
+function splitRoad(r, p) {
+  const A = node(r.u), B = node(r.v), dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
+  const t = Math.max(.08, Math.min(.92, ((p.x - A.x) * dx + (p.y - A.y) * dy) / L2));
+  const n = addNode({ x: A.x + dx * t, y: A.y + dy * t }); n.name = r.name + ' (novo cruzamento)';
+  M.roads.push({ ...r, id: newId('r'), u: n.id, v: r.v }); r.v = n.id; return n;
+}
+function delNode(id) { M.nodes = M.nodes.filter(n => n.id !== id); M.roads = M.roads.filter(r => r.u !== id && r.v !== id); if (st.sel && st.sel.id === id) st.sel = null; }
+function delRoad(id) { M.roads = M.roads.filter(r => r.id !== id); if (st.sel && st.sel.id === id) st.sel = null; }
+
+let drag = null, spaceDown = false;
+svg.addEventListener('contextmenu', e => e.preventDefault());
+svg.addEventListener('pointerdown', e => {
+  const p = pt(e), gN = e.target.closest('[data-node]'), gR = e.target.closest('[data-road]');
+  let nId = gN && gN.dataset.node;
+  if (!nId) { // ímã: um clique perto de um cruzamento usa o cruzamento existente
+    const tol = Math.max(14, 22 * st.vb.w / (svg.clientWidth || 1000));
+    let best = null, bd = tol; for (const n of M.nodes) { const d = Math.hypot(n.x - p.x, n.y - p.y); if (d < bd) { bd = d; best = n; } }
+    if (best) nId = best.id;
+  }
+  const rId = !nId && gR && gR.dataset.road;
+  if (e.button === 1 || e.button === 2 || spaceDown) { drag = { pan: true, sx: e.clientX, sy: e.clientY, vb: { ...st.vb } }; svg.classList.add('pan'); svg.setPointerCapture(e.pointerId); return; }
+  if (e.button !== 0) return;
+  if (st.passo !== null && st.tool !== 'sel') { st.passo = null; stopPlay(); }
+  switch (st.tool) {
+    case 'sel':
+      if (nId) { st.sel = { t: 'node', id: nId }; drag = { node: nId, moved: false, ox: p.x - node(nId).x, oy: p.y - node(nId).y }; if (st.tab !== 'insp') st.tab = 'insp'; }
+      else if (rId) { st.sel = { t: 'road', id: rId }; if (st.tab === 'a') toggleAfetada(rId); else st.tab = 'insp'; }
+      else { st.sel = null; drag = { pan: true, sx: e.clientX, sy: e.clientY, vb: { ...st.vb } }; svg.classList.add('pan'); }
+      svg.setPointerCapture(e.pointerId); renderPane(); drawMap(); renderTabs(); return;
+    case 'rua': {
+      snap(); let tgt = nId ? node(nId) : rId ? splitRoad(road(rId), p) : addNode(p);
+      if (!st.pend) st.pend = tgt.id;
+      else if (tgt.id === st.pend) { st.pend = null; undoS.pop(); }
+      else { const r = addRoad(st.pend, tgt.id); if (r) st.sel = { t: 'road', id: r.id }; st.pend = tgt.id; }
+      renderTools(); commit(); return; }
+    case 'cruz':
+      if (nId) { st.sel = { t: 'node', id: nId }; renderPane(); drawMap(); return; }
+      snap(); st.sel = { t: 'node', id: (rId ? splitRoad(road(rId), p) : addNode(p)).id }; st.tab = 'insp'; commit(); return;
+    case 'src': case 'snk':
+      if (!nId) return; snap(); { const n = node(nId); n.role = n.role === st.tool ? '' : st.tool; st.sel = { t: 'node', id: nId }; } commit(); return;
+    case 'del':
+      if (nId) { snap(); delNode(nId); commit(); } else if (rId) { snap(); delRoad(rId); commit(); } return;
+  }
+});
+svg.addEventListener('pointermove', e => {
+  if (drag && drag.pan) { const k = st.vb.w / svg.clientWidth; st.vb.x = drag.vb.x - (e.clientX - drag.sx) * k; st.vb.y = drag.vb.y - (e.clientY - drag.sy) * k; applyVB(); return; }
+  const p = pt(e);
+  if (drag && drag.node) { if (!drag.moved) { snap(); drag.moved = true; } const n = node(drag.node); n.x = Math.round(p.x - drag.ox); n.y = Math.round(p.y - drag.oy); drawMap(); return; }
+  const pv = $('#prev');
+  if (st.tool === 'rua' && st.pend && node(st.pend)) { const a = node(st.pend); pv.setAttribute('x1', a.x); pv.setAttribute('y1', a.y); pv.setAttribute('x2', p.x); pv.setAttribute('y2', p.y); pv.setAttribute('visibility', 'visible'); }
+  else pv.setAttribute('visibility', 'hidden');
+});
+const endDrag = () => { if (drag && drag.node && drag.moved) save(); drag = null; svg.classList.remove('pan'); };
+svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag);
+svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(pt(e), e.deltaY > 0 ? 1.15 : 1 / 1.15); }, { passive: false });
+function zoomAt(p, f) { const v = st.vb, w = Math.max(160, Math.min(5000, v.w * f)), k = w / v.w; st.vb = { x: p.x - (p.x - v.x) * k, y: p.y - (p.y - v.y) * k, w, h: v.h * k }; applyVB(); }
+$('#zIn').onclick = () => zoomAt({ x: st.vb.x + st.vb.w / 2, y: st.vb.y + st.vb.h / 2 }, 1 / 1.3);
+$('#zOut').onclick = () => zoomAt({ x: st.vb.x + st.vb.w / 2, y: st.vb.y + st.vb.h / 2 }, 1.3);
+$('#zFit').onclick = fit;
+function sizeVB() { const r = svg.getBoundingClientRect(); if (r.width && r.height) { st.vb.h = st.vb.w * r.height / r.width; applyVB(); } }
+const roMap = new ResizeObserver(sizeVB); roMap.observe(svg);
+
+$('#tools').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tool) return setTool(b.dataset.tool);
+  if (b.dataset.act === 'undo') doUndo(); else if (b.dataset.act === 'redo') doRedo();
+  else if (b.dataset.act === 'res') { st.residual = !st.residual; st.passo = null; renderTools(); drawMap(); hud(); }
+});
+function doUndo() { if (!undoS.length) return; redoS.push(JSON.stringify(M)); M = JSON.parse(undoS.pop()); st.sel = null; st.pend = null; commit(); }
+function doRedo() { if (!redoS.length) return; undoS.push(JSON.stringify(M)); M = JSON.parse(redoS.pop()); st.sel = null; commit(); }
+$$('.seg button').forEach(b => b.onclick = () => { st.metodo = b.dataset.m; st.cenB.res = null; if (st.cen && st.cen.tipo === 'B') st.cen = null; st.passo = null; recompute(); renderAll(); });
+
+document.addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (typing) return;
+  if (e.key === ' ') { spaceDown = true; e.preventDefault(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
+  if (e.key === 'Escape') { if (!st.pend && !st.sel && st.cen) { st.cen = null; st.cenA.res = null; st.cenB.res = null; recompute(); renderAll(); return; } st.pend = null; st.sel = null; $('#prev').setAttribute('visibility', 'hidden'); renderTools(); renderPane(); drawMap(); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && st.sel) { snap(); st.sel.t === 'node' ? delNode(st.sel.id) : delRoad(st.sel.id); commit(); return; }
+  const m = { v: 'sel', r: 'rua', c: 'cruz', o: 'src', d: 'snk', x: 'del' }[e.key.toLowerCase()];
+  if (m && !e.ctrlKey && !e.metaKey) setTool(m);
+});
+document.addEventListener('keyup', e => { if (e.key === ' ') spaceDown = false; });
+
+/* ---------------- painel lateral ---------------- */
+const TABS = [['insp', 'Editar'], ['garg', 'Gargalos'], ['a', 'Cenário A'], ['b', 'Cenário B'], ['passo', 'Passo a passo'], ['resid', 'Residual'], ['arq', 'Arquivo']];
+function renderTabs() { $('#tabs').innerHTML = TABS.map(([k, l]) => `<button role="tab" data-tab="${k}" class="${st.tab === k ? 'on' : ''}" aria-selected="${st.tab === k}">${l}</button>`).join(''); }
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.tab = b.dataset.tab; if (st.tab !== 'passo') { st.passo = null; stopPlay(); } renderTabs(); renderPane(); drawMap(); hud(); });
+const tipoOpts = sel => Object.entries(TIPOS).map(([k, t]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${t.nome}${t.cap ? ' — ' + fmt(t.cap) + ' veíc/h' : ''}</option>`).join('');
+const roadOpts = sel => M.roads.map(r => `<option value="${esc(r.id)}" ${r.id === sel ? 'selected' : ''}>${esc(r.name)} — ${esc(curto(r.u))} ↔ ${esc(curto(r.v))}</option>`).join('');
+
+function renderPane() {
+  const P = $('#pane'), V = view();
+  if (st.tab === 'insp') {
+    const s = st.sel;
+    if (s && s.t === 'road' && road(s.id)) {
+      const r = road(s.id), fw = V.arcs.find(a => a.id === r.id + '>'), bw = V.arcs.find(a => a.id === r.id + '<');
+      const linha = (a, lbl) => a ? `<tr><td>${lbl}</td><td class="n">${fmt(a.cap)}</td><td class="n">${fmt(a.flow)}</td><td class="n">${fmt(a.res)}</td><td>${a.res === 0 && a.cap > 0 ? '<span class="pill s">100%</span>' : pct(a.util)}</td></tr>` : '';
+      P.innerHTML = `<h3>${esc(r.name)}</h3><p>${esc(nm(r.u))} ${r.twoWay ? '↔' : '→'} ${esc(nm(r.v))}</p>
+      <label class="f" for="rName">Nome da rua</label><input class="in-t" id="rName" value="${esc(r.name)}">
+      <label class="f" for="rTipo">Tipo de via</label><select class="in-t" id="rTipo">${tipoOpts(r.tipo)}</select>
+      <label class="f" for="rCap">Capacidade por sentido (veíc/h)</label><input class="in-t" id="rCap" type="number" min="0" step="100" value="${r.cap}">
+      <label class="chk"><input type="checkbox" id="rTwo" ${r.twoWay ? 'checked' : ''}> Mão dupla (dois arcos: u→v e v→u)</label>
+      <div class="btns"><button class="b2" id="rInv" ${r.twoWay ? 'disabled' : ''}>Inverter sentido</button><button class="b2" id="rApply">Aplicar este tipo às próximas ruas</button><button class="b2" id="rSimA">Simular interdição</button><button class="b2 p" id="rDel">Apagar rua</button></div>
+      <table><thead><tr><th>Sentido</th><th class="n">c</th><th class="n">f</th><th class="n">c<sub>f</sub></th><th>Uso</th></tr></thead><tbody>${linha(fw, esc(curto(r.u)) + ' → ' + esc(curto(r.v)))}${linha(bw, esc(curto(r.v)) + ' → ' + esc(curto(r.u)))}</tbody></table>`;
+      const ch = (fn) => { snap(); fn(); commit(true); };
+      $('#rName').onchange = e => ch(() => r.name = e.target.value.trim() || r.name);
+      $('#rTipo').onchange = e => ch(() => { r.tipo = e.target.value; if (TIPOS[r.tipo].cap) r.cap = TIPOS[r.tipo].cap; });
+      $('#rCap').onchange = e => ch(() => { r.cap = Math.max(0, Math.round(+e.target.value || 0)); r.tipo = Object.keys(TIPOS).find(k => TIPOS[k].cap === r.cap) || 'custom'; });
+      $('#rTwo').onchange = e => ch(() => r.twoWay = e.target.checked);
+      $('#rInv').onclick = () => ch(() => { [r.u, r.v] = [r.v, r.u]; });
+      $('#rApply').onclick = () => { st.preset = { tipo: r.tipo, cap: r.cap, twoWay: r.twoWay }; flash('#rApply', 'Ok, próximas ruas usarão este tipo'); };
+      $('#rSimA').onclick = () => { st.cenA.lista = [{ road: r.id, modo: 'interditar', pct: 50 }]; st.tab = 'a'; runA(); };
+      $('#rDel').onclick = () => { snap(); delRoad(r.id); commit(); };
+      return;
+    }
+    if (s && s.t === 'node' && node(s.id)) {
+      const n = node(s.id), lig = M.roads.filter(r => r.u === n.id || r.v === n.id);
+      P.innerHTML = `<h3>Cruzamento</h3><label class="f" for="nName">Nome</label><input class="in-t" id="nName" value="${esc(n.name)}">
+      <label class="f" for="nRole">Papel na rede</label><select class="in-t" id="nRole"><option value="">Cruzamento comum</option><option value="src" ${n.role === 'src' ? 'selected' : ''}>Origem (s) — de onde saem os carros</option><option value="snk" ${n.role === 'snk' ? 'selected' : ''}>Destino (t) — para onde vão</option></select>
+      <p style="margin-top:14px">${lig.length} rua(s) ligadas: ${lig.map(r => esc(r.name)).join(', ') || 'nenhuma'}</p>
+      <div class="btns"><button class="b2 p" id="nDel">Apagar cruzamento</button></div>`;
+      $('#nName').onchange = e => { snap(); n.name = e.target.value.trim() || n.name; commit(true); };
+      $('#nRole').onchange = e => { snap(); n.role = e.target.value; commit(); };
+      $('#nDel').onclick = () => { snap(); delNode(n.id); commit(); };
+      return;
+    }
+    P.innerHTML = `<h3>${esc(M.nome || 'Minha cidade')}</h3>
+      <p>${M.nodes.length} cruzamentos · ${M.roads.length} ruas · ${arcosDe(M).length} arcos orientados</p>
+      <label class="f" for="cNome">Nome do mapa</label><input class="in-t" id="cNome" value="${esc(M.nome || '')}">
+      <label class="f" for="cEv">Veículos saindo do evento (para o tempo de esvaziamento)</label><input class="in-t" id="cEv" type="number" min="0" step="500" value="${M.evento || 0}">
+      <h3 style="margin-top:22px;font-size:20px">Próxima rua que você desenhar</h3>
+      <label class="f" for="pTipo">Tipo</label><select class="in-t" id="pTipo">${tipoOpts(st.preset.tipo)}</select>
+      <label class="f" for="pCap">Capacidade por sentido (veíc/h)</label><input class="in-t" id="pCap" type="number" min="0" step="100" value="${st.preset.cap}">
+      <label class="chk"><input type="checkbox" id="pTwo" ${st.preset.twoWay ? 'checked' : ''}> Mão dupla</label>
+      <div class="btns"><button class="b2 p" id="goRua">Desenhar ruas (R)</button></div>
+      <div class="note"><b>Como criar sua própria cidade:</b> use <b>Nova rua</b> e clique de cruzamento em cruzamento. Clicar em cima de uma rua cria um cruzamento no meio dela. Depois marque uma <b>Origem</b> e um ou mais <b>Destinos</b>. O fluxo é recalculado a cada mudança.</div>
+      <div class="note">Capacidades de referência (enunciado): via local 600 veíc/h, avenida de 3 faixas 2.400 veíc/h — cerca de 800 veíc/h por faixa de avenida.</div>`;
+    $('#cNome').onchange = e => { M.nome = e.target.value; save(); };
+    $('#cEv').onchange = e => { M.evento = Math.max(0, +e.target.value || 0); save(); hud(); };
+    $('#pTipo').onchange = e => { st.preset.tipo = e.target.value; if (TIPOS[st.preset.tipo].cap) st.preset.cap = TIPOS[st.preset.tipo].cap; renderPane(); };
+    $('#pCap').onchange = e => { st.preset.cap = Math.max(0, Math.round(+e.target.value || 0)); st.preset.tipo = Object.keys(TIPOS).find(k => TIPOS[k].cap === st.preset.cap) || 'custom'; renderPane(); };
+    $('#pTwo').onchange = e => st.preset.twoWay = e.target.checked;
+    $('#goRua').onclick = () => setTool('rua');
+    return;
+  }
+  if (st.tab === 'garg') {
+    const sum = RES.corte.reduce((s, a) => s + a.cap, 0);
+    P.innerHTML = `<h3>Diagnóstico de gargalos</h3><p>Ruas que atingiram 100% da capacidade: c<sub>f</sub>(u,v) = c(u,v) − f(u,v) = 0. Clique numa linha para localizar no mapa.</p>
+    <table class="stack"><thead><tr><th>Rua e sentido</th><th class="n">c = f</th></tr></thead><tbody>${RES.saturadas.map(a => `<tr class="cl hl" data-road="${esc(a.road)}"><td>${esc(arcLabel(a))}</td><td class="n">${fmt(a.cap)}</td></tr>`).join('') || '<tr><td colspan="2">Nenhuma via saturada.</td></tr>'}</tbody></table>
+    <h3 style="margin-top:22px;font-size:21px">Corte mínimo (s, t)</h3>
+    <p>Arcos que saem do conjunto de cruzamentos ainda alcançáveis a partir da origem na rede residual final. São os verdadeiros limitadores: alargar outra rua não adianta.</p>
+    <table class="stack"><thead><tr><th>Arco do corte</th><th class="n">c</th></tr></thead><tbody>${RES.corte.map(a => `<tr class="cl" data-road="${esc(a.road)}"><td>${esc(arcLabel(a))}</td><td class="n">${fmt(a.cap)}</td></tr>`).join('')}</tbody></table>
+    <p style="margin-top:10px">Σ capacidades do corte = <b>${fmt(sum)}</b> = fluxo máximo <b>${fmt(RES.total)}</b> ${sum === RES.total ? '<span class="ok">✓ teorema fluxo máximo / corte mínimo</span>' : ''}</p>`;
+    bindRowSel(P); return;
+  }
+  if (st.tab === 'a') {
+    const L = st.cenA.lista.filter(x => road(x.road)); st.cenA.lista = L;
+    const livres = M.roads.filter(r => !L.some(x => x.road === r.id));
+    if (!st.cenA.add || !livres.some(r => r.id === st.cenA.add)) st.cenA.add = livres[0] ? livres[0].id : null;
+    const R = st.cenA.res;
+    P.innerHTML = `<h3>Cenário A — obras ou acidentes</h3><p>Monte a lista de ruas afetadas: pode ser uma só ou várias ao mesmo tempo. Também dá para clicar nas ruas do mapa (ferramenta Mover) para incluir ou tirar da lista.</p>
+    <label class="f" for="aAdd">Adicionar rua</label>
+    <div style="display:flex;gap:8px"><select class="in-t" id="aAdd" style="flex:1;width:auto" ${livres.length ? '' : 'disabled'}>${livres.map(r => `<option value="${esc(r.id)}" ${r.id === st.cenA.add ? 'selected' : ''}>${esc(r.name)} — ${esc(curto(r.u))} ↔ ${esc(curto(r.v))}</option>`).join('')}</select><button class="b2 t" id="aAddB" style="flex:none" ${livres.length ? '' : 'disabled'}>Adicionar</button></div>
+    <div id="aList">${L.length ? L.map((x, k) => { const r = road(x.road); return `<div class="card" style="padding:12px;margin-top:10px;border-radius:12px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b style="font-size:14.5px">${esc(r.name)}<br><span style="font-weight:400;color:var(--mute);font-size:13px">${esc(curto(r.u))} ${r.twoWay ? '↔' : '→'} ${esc(curto(r.v))} · ${fmt(r.cap)} veíc/h</span></b><button class="b2" data-rm="${k}" aria-label="Remover da lista" style="min-height:36px;padding:4px 10px">✕</button></div>
+      <label class="chk" style="margin:8px 0 2px"><input type="radio" name="aM${k}" value="interditar" data-k="${k}" ${x.modo === 'interditar' ? 'checked' : ''}> Interditar completamente (c = 0)</label>
+      <label class="chk" style="margin:2px 0"><input type="radio" name="aM${k}" value="reduzir" data-k="${k}" ${x.modo === 'reduzir' ? 'checked' : ''}> Diminuir fluxo</label>
+      ${x.modo === 'reduzir' ? `<div style="display:flex;align-items:center;gap:10px;margin-top:4px"><input class="range" type="range" min="10" max="90" step="5" value="${x.pct}" data-p="${k}" aria-label="Redução em %"><b style="white-space:nowrap;min-width:110px" id="aPv${k}">−${x.pct}% → ${fmt(Math.floor(r.cap * (1 - x.pct / 100)))}</b></div>` : ''}
+    </div>`; }).join('') : '<p class="note">Nenhuma rua na lista ainda.</p>'}</div>
+    <div class="btns"><button class="b2 p" id="aRun" ${L.length ? '' : 'disabled'}>Simular ${L.length > 1 ? L.length + ' ruas juntas' : ''}</button><button class="b2" id="aClr" ${st.cen || L.length ? '' : 'disabled'}>Limpar</button><button class="b2" id="aRank">Ranking: ruas mais críticas</button></div>
+    ${R ? `<div class="res"><div><small>Antes</small><b>${fmt(R.antes)}</b></div><div><small>Depois</small><b style="color:var(--pink)">${fmt(R.depois)}</b></div><div><small>Perda</small><b>${fmt(R.perda)}</b> <small>veíc/h</small></div><div><small>Perda percentual</small><b style="color:var(--sun)">${pct(R.perdaPct / 100)}</b></div>
+      <div class="wide"><small>Tempo para esvaziar ${fmt(M.evento || 0)} carros</small><b style="font-size:22px">${tempo(M.evento || 0, R.antes)} → ${tempo(M.evento || 0, R.depois)}</b></div></div>
+      ${R.cada && R.cada.length > 1 ? `<table><thead><tr><th>Se fosse só esta rua</th><th class="n">Perda</th></tr></thead><tbody>${R.cada.map(c => `<tr><td>${esc(c.nome)}</td><td class="n">${pct(c.pct / 100)}</td></tr>`).join('')}<tr class="hl"><td><b>Todas juntas</b></td><td class="n"><b>${pct(R.perdaPct / 100)}</b></td></tr></tbody></table><p style="font-size:13px">Juntas, as ruas podem perder mais (ou menos) que a soma das perdas isoladas, porque os desvios se somam.</p>` : ''}` : ''}
+    ${st.rank ? `<h3 style="margin-top:20px;font-size:20px">Se cada rua fosse interditada sozinha…</h3><table class="stack"><thead><tr><th>Rua</th><th class="n">Perda</th></tr></thead><tbody>${st.rank.slice(0, 10).map(x => `<tr class="cl" data-road="${esc(x.id)}"><td>${esc(x.nome)}</td><td class="n">${pct(x.pct / 100)}</td></tr>`).join('')}</tbody></table><p style="font-size:13px">Clique numa linha para adicioná-la à lista.</p>` : ''}`;
+    $('#aAdd').onchange = e => st.cenA.add = e.target.value;
+    $('#aAddB').onclick = () => { if (st.cenA.add) { st.cenA.lista.push({ road: st.cenA.add, modo: 'interditar', pct: 50 }); st.cenA.add = null; renderPane(); drawMap(); } };
+    $$('#aList [data-rm]').forEach(b => b.onclick = () => { st.cenA.lista.splice(+b.dataset.rm, 1); renderPane(); drawMap(); });
+    $$('#aList input[type=radio]').forEach(i => i.onchange = () => { st.cenA.lista[+i.dataset.k].modo = i.value; renderPane(); drawMap(); });
+    $$('#aList input[data-p]').forEach(i => i.oninput = () => { const k = +i.dataset.p, x = st.cenA.lista[k], r = road(x.road); x.pct = +i.value; $('#aPv' + k).textContent = `−${x.pct}% → ${fmt(Math.floor(r.cap * (1 - x.pct / 100)))}`; });
+    $('#aRun').onclick = runA;
+    $('#aClr').onclick = () => { st.cen = null; st.cenA.res = null; st.cenA.lista = []; recompute(); renderAll(); };
+    $('#aRank').onclick = () => { st.rank = rankCrit(); renderPane(); };
+    P.querySelectorAll('tr[data-road]').forEach(t => t.onclick = () => { if (!st.cenA.lista.some(x => x.road === t.dataset.road)) st.cenA.lista.push({ road: t.dataset.road, modo: 'interditar', pct: 50 }); st.sel = { t: 'road', id: t.dataset.road }; renderPane(); drawMap(); });
+    return;
+  }
+  if (st.tab === 'b') {
+    const B = st.cenB.res;
+    P.innerHTML = `<h3>Cenário B — investimento</h3><p>A prefeitura pode alargar <b>uma</b> rua em +X veíc/h. Testamos o acréscimo em cada arco saturado, recalculamos o fluxo máximo e recomendamos a obra de maior ganho real.</p>
+    <label class="f" for="bX">Acréscimo X (veíc/h)</label><input class="in-t" id="bX" type="number" min="1" step="100" value="${st.cenB.X}">
+    <div class="btns"><button class="b2" data-x="600">+600 (1 faixa local)</button><button class="b2" data-x="800">+800 (1 faixa avenida)</button><button class="b2" data-x="1600">+1.600</button></div>
+    <div class="btns"><button class="b2 p" id="bRun">Recomendar obra</button>${B && B.melhor ? '<button class="b2 t" id="bApply">Aplicar a obra no mapa</button>' : ''}${B ? '<button class="b2" id="bClr">Limpar recomendação</button>' : ''}${undoS.length ? '<button class="b2" id="bUndo">Desfazer última obra (Ctrl+Z)</button>' : ''}</div>
+    ${B ? `<div class="res">${B.melhor ? `<div class="wide"><small>Obra recomendada</small><span style="display:block;font:700 18px/1.3 Inter,sans-serif;color:var(--ink);margin-top:2px">${esc(arcLabel(B.melhor.arc))}</span></div><div><small>Fluxo hoje → depois</small><b>${fmt(B.base)} → <span style="color:var(--teal)">${fmt(B.melhor.novo)}</span></b></div><div><small>Ganho</small><b style="color:var(--teal)">+${fmt(B.melhor.ganho)}</b> <small>(${pct(B.base ? B.melhor.ganho / B.base : 0)})</small></div>` :
+      `<div class="wide"><small>Resultado</small><p style="margin:4px 0 0;color:var(--ink)">Nenhuma obra isolada aumenta o fluxo: o corte mínimo tem vários arcos, então é preciso alargar mais de um ao mesmo tempo.</p></div>`}</div>
+    <table class="stack"><thead><tr><th>Arco saturado testado</th><th class="n">Novo fluxo</th><th class="n">Ganho</th></tr></thead><tbody>${B.opcoes.map((o, i) => `<tr class="cl ${i === 0 && B.melhor ? 'best' : ''}" data-road="${esc(o.arc.road)}"><td>${esc(arcLabel(o.arc))}</td><td class="n">${fmt(o.novo)}</td><td class="n">${o.ganho > 0 ? '+' + fmt(o.ganho) : '0'}</td></tr>`).join('')}</tbody></table>
+    <p style="margin-top:10px;font-size:13px">Só arcos do corte mínimo podem gerar ganho; empates indicam obras equivalentes.</p>` : ''}`;
+    $('#bX').onchange = e => st.cenB.X = Math.max(1, Math.round(+e.target.value || 1));
+    $$('[data-x]').forEach(b => b.onclick = () => { st.cenB.X = +b.dataset.x; runB(); });
+    $('#bRun').onclick = runB;
+    if ($('#bClr')) $('#bClr').onclick = () => { st.cen = null; st.cenB.res = null; recompute(); renderAll(); };
+    if ($('#bUndo')) $('#bUndo').onclick = () => { doUndo(); st.tab = 'b'; renderTabs(); renderPane(); };
+    if ($('#bApply')) $('#bApply').onclick = () => {
+      const a = B.melhor.arc, r = road(a.road); snap();
+      if (r.twoWay) { // separa o sentido alargado em uma rua de mão única própria
+        const other = { ...r, id: newId('r'), twoWay: false, u: a.v, v: a.u }; r.twoWay = false; r.u = a.u; r.v = a.v; M.roads.push(other);
+      }
+      r.cap += st.cenB.X; r.tipo = 'custom'; r.name = r.name.replace(/ \(obra.*\)$/, '') + ' (obra +' + fmt(st.cenB.X) + ')'; st.sel = { t: 'road', id: r.id }; commit();
+    };
+    bindRowSel(P); return;
+  }
+  if (st.tab === 'passo') {
+    const H = RES.hist, k = st.passo === null ? H.length : st.passo;
+    P.innerHTML = `<h3>Passo a passo do algoritmo</h3><p>Cada linha é um caminho aumentante encontrado por ${st.metodo === 'dfs' ? 'DFS (Ford-Fulkerson clássico)' : 'BFS (Edmonds-Karp)'} na rede residual. Em <span class="path"><span class="bk">amarelo</span></span>, trechos que usam um arco reverso (desfazem fluxo antigo).</p>
+    <div class="btns"><button class="b2" id="p0" aria-label="Início">⏮</button><button class="b2" id="pPrev" aria-label="Anterior">◀</button><button class="b2 p" id="pPlay">${st.play ? 'Pausar' : '▶ Animar'}</button><button class="b2" id="pNext" aria-label="Próximo">▶</button><button class="b2" id="pEnd" aria-label="Fim">⏭</button></div>
+    <input class="range" type="range" id="pR" min="0" max="${H.length}" value="${k}" aria-label="Passo">
+    <table><thead><tr><th>#</th><th>Caminho s → t</th><th class="n">Gargalo</th><th class="n">Total</th></tr></thead><tbody>${H.map((h, i) => `<tr class="cl ${i + 1 === st.passo ? 'best' : ''}" data-step="${i + 1}"><td>${i + 1}</td><td class="path">${h.passos.map(p => { const a = arcosDe(M).find(x => x.id === p.arc); const [u, v] = p.dir > 0 ? [a.u, a.v] : [a.v, a.u]; return `<span class="${p.dir < 0 ? 'bk' : ''}">${esc(curto(u))} → ${esc(curto(v))}</span>`; }).join('<br>')}</td><td class="n">${fmt(h.b)}</td><td class="n">${fmt(h.total)}</td></tr>`).join('')}</tbody></table>`;
+    const go = n => { stopPlay(); st.passo = Math.max(0, Math.min(H.length, n)); refreshStep(); };
+    $('#p0').onclick = () => go(0); $('#pEnd').onclick = () => go(H.length);
+    $('#pPrev').onclick = () => go((st.passo === null ? H.length : st.passo) - 1); $('#pNext').onclick = () => go((st.passo === null ? 0 : st.passo) + 1);
+    $('#pR').oninput = e => go(+e.target.value);
+    $('#pPlay').onclick = () => { if (st.play) { stopPlay(); renderPane(); return; } if (st.passo === null || st.passo >= H.length) st.passo = 0; refreshStep(); st.play = setInterval(() => { if (st.passo >= H.length) { stopPlay(); renderPane(); return; } st.passo++; refreshStep(); }, 1300); renderPane(); };
+    $$('#pane tr[data-step]').forEach(t => t.onclick = () => go(+t.dataset.step));
+    return;
+  }
+  if (st.tab === 'resid') {
+    P.innerHTML = `<h3>Rede residual final</h3><p>Para cada arco u→v: capacidade residual direta c<sub>f</sub>(u,v) = c − f e o arco reverso v→u com c<sub>f</sub> = f (permite "devolver" fluxo).</p>
+    <label class="chk"><input type="checkbox" id="rsT" ${st.residual ? 'checked' : ''}> Desenhar a rede residual no mapa</label>
+    <table class="stack"><thead><tr><th>Arco u → v</th><th class="n">c</th><th class="n">f</th><th class="n">c<sub>f</sub>(u,v)</th><th class="n">c<sub>f</sub>(v,u)</th></tr></thead><tbody>${RES.arcs.filter(a => a.cap > 0).map(a => `<tr class="cl ${a.res === 0 ? 'hl' : ''}" data-road="${esc(a.road)}"><td>${esc(arcLabel(a))}</td><td class="n">${fmt(a.cap)}</td><td class="n">${fmt(a.flow)}</td><td class="n">${fmt(a.res)}</td><td class="n">${fmt(a.flow)}</td></tr>`).join('')}</tbody></table>`;
+    $('#rsT').onchange = e => { st.residual = e.target.checked; renderTools(); drawMap(); hud(); };
+    bindRowSel(P); return;
+  }
+  if (st.tab === 'arq') {
+    P.innerHTML = `<h3>Mapas e arquivos</h3>
+    <div class="btns"><button class="b2 p" id="fReset">Restaurar South Beach (Miami)</button><button class="b2" id="fBlank">Começar mapa em branco</button></div>
+    <label class="chk"><input type="checkbox" id="fBase" ${M.fundo !== 'nenhum' ? 'checked' : ''}> Mostrar contorno de Miami Beach ao fundo</label>
+    <h3 style="margin-top:20px;font-size:20px">Imagem de fundo</h3><p>Carregue um print de mapa (Google Maps, OpenStreetMap ou o mapa de Leonida do projeto) e desenhe as ruas por cima.</p>
+    <div class="btns"><button class="b2" id="fBg">Carregar imagem…</button>${st.bg ? '<button class="b2" id="fBgX">Remover imagem</button>' : ''}</div>
+    ${st.bg ? `<label class="f" for="fOp">Opacidade da imagem</label><input class="range" id="fOp" type="range" min="0.1" max="1" step="0.05" value="${st.bgOp}">` : ''}
+    <h3 style="margin-top:20px;font-size:20px">Exportar / importar (JSON)</h3><p>O mesmo JSON roda no verificador em Python (ford_fulkerson.py).</p>
+    <div class="btns"><button class="b2" id="fCopy">Copiar JSON</button><button class="b2" id="fDl">Baixar .json</button><button class="b2" id="fOpen">Abrir arquivo…</button></div>
+    <label class="f" for="fTxt">Cole um JSON aqui para importar</label><textarea class="in-t" id="fTxt" spellcheck="false">${esc(JSON.stringify(M))}</textarea>
+    <div class="btns"><button class="b2 t" id="fImp">Importar do texto</button></div><p id="fMsg"></p>`;
+    $('#fReset').onclick = () => { snap(); M = clone(MAPA_PADRAO); st.sel = null; commit(); fit(); };
+    $('#fBlank').onclick = () => { snap(); M = { nome: 'Minha cidade', nodes: [], roads: [], evento: 5000, fundo: 'nenhum' }; st.sel = null; commit(); setTool('rua'); fit(); };
+    $('#fBase').onchange = e => { M.fundo = e.target.checked ? '' : 'nenhum'; save(); drawBase(); };
+    $('#fBg').onclick = () => $('#fileBg').click();
+    if ($('#fBgX')) $('#fBgX').onclick = () => { st.bg = null; drawBg(); renderPane(); };
+    if ($('#fOp')) $('#fOp').oninput = e => { st.bgOp = +e.target.value; drawBg(); };
+    $('#fCopy').onclick = () => { try { navigator.clipboard.writeText(JSON.stringify(M, null, 1)).then(() => msg('JSON copiado.'), () => msg('Copie manualmente do campo abaixo.')); } catch (e) { msg('Copie manualmente do campo abaixo.'); } };
+    $('#fDl').onclick = () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(M, null, 1)], { type: 'application/json' })); a.download = 'mapa-neonflow.json'; document.body.appendChild(a); a.click(); a.remove(); msg('Se o download não começar, use "Copiar JSON".'); } catch (e) { msg('Download bloqueado aqui — use "Copiar JSON".'); } };
+    $('#fOpen').onclick = () => $('#fileJson').click();
+    $('#fImp').onclick = () => importJSON($('#fTxt').value);
+  }
+}
+const msg = t => { const m = $('#fMsg'); if (m) m.textContent = t; };
+function flash(sel, t) { const b = $(sel); if (!b) return; const o = b.textContent; b.textContent = t; setTimeout(() => { if (b.isConnected) b.textContent = o; }, 1400); }
+function bindRowSel(P) { P.querySelectorAll('tr[data-road]').forEach(t => t.onclick = () => { st.sel = { t: 'road', id: t.dataset.road }; drawMap(); }); }
+function toggleAfetada(id) {
+  const k = st.cenA.lista.findIndex(x => x.road === id);
+  if (k >= 0) st.cenA.lista.splice(k, 1); else st.cenA.lista.push({ road: id, modo: 'interditar', pct: 50 });
+}
+function runA() {
+  const L = st.cenA.lista.filter(x => road(x.road)); if (!L.length) return;
+  st.cenA.res = cenarioA(M, L, st.metodo);
+  st.cenA.res.cada = L.length > 1 ? L.map(x => ({ nome: road(x.road).name + ' (' + (x.modo === 'interditar' ? 'interditada' : '−' + x.pct + '%') + ')', pct: cenarioA(M, [x], st.metodo).perdaPct })) : null;
+  st.cen = { tipo: 'A', lista: L.map(x => ({ ...x })) }; st.sel = null; st.passo = null;
+  recompute(); renderAll();
+}
+function rankCrit() { return M.roads.map(r => ({ id: r.id, nome: r.name + ' — ' + curto(r.u) + ' ↔ ' + curto(r.v), pct: cenarioA(M, [{ road: r.id, modo: 'interditar' }], st.metodo).perdaPct })).filter(x => x.pct > 0).sort((a, b) => b.pct - a.pct); }
+function runB() { st.cenB.res = cenarioB(M, st.cenB.X, st.metodo); st.cen = { tipo: 'B' }; st.passo = null; recompute(); renderAll(); }
+function stopPlay() { if (st.play) clearInterval(st.play); st.play = null; }
+function refreshStep() { drawMap(); hud(); const r = $('#pR'); if (r) r.value = st.passo; $$('#pane tr[data-step]').forEach(t => t.classList.toggle('best', +t.dataset.step === st.passo)); const b = $('#pPlay'); if (b) b.textContent = st.play ? 'Pausar' : '▶ Animar'; }
+function importJSON(txt) {
+  try { const m = JSON.parse(txt); if (!Array.isArray(m.nodes) || !Array.isArray(m.roads)) throw 0;
+    m.nodes = m.nodes.map(n => ({ id: String(n.id), name: String(n.name || n.nome || n.id), x: +n.x, y: +n.y, role: n.role === 'src' || n.role === 'snk' ? n.role : '' }));
+    const ids = new Set(m.nodes.map(n => n.id));
+    m.roads = m.roads.map((r, i) => ({ id: String(r.id || 'r' + i), u: String(r.u), v: String(r.v), tipo: TIPOS[r.tipo] ? r.tipo : 'custom', cap: Math.max(0, +r.cap || 0), twoWay: !!r.twoWay, name: String(r.name || 'Rua') })).filter(r => ids.has(r.u) && ids.has(r.v));
+    snap(); M = { nome: String(m.nome || 'Mapa importado'), nodes: m.nodes, roads: m.roads, evento: +m.evento || 0, fundo: m.fundo === 'nenhum' ? 'nenhum' : '' }; st.sel = null; commit(); fit(); msg('Mapa importado.');
+  } catch (e) { msg('JSON inválido: esperado { nodes: [...], roads: [...] }.'); }
+}
+$('#fileJson').onchange = e => { const f = e.target.files[0]; if (!f) return; f.text().then(importJSON); e.target.value = ''; };
+$('#fileBg').onchange = e => {
+  const f = e.target.files[0]; if (!f) return; e.target.value = '';
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => { const w = 1000, h = w * im.naturalHeight / im.naturalWidth; st.bg = { url, x: 0, y: 0, w, h }; drawBg(); renderPane(); };
+  im.src = url;
+};
+
+/* ---------------- roteamento ---------------- */
+function renderAll() { drawBase(); drawBg(); drawMap(); hud(); renderTools(); renderTabs(); renderPane(); }
+recompute(); renderAll(); requestAnimationFrame(fit);
+}
+
+</script>
+</body>
+</html>
