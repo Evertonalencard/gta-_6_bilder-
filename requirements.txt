@@ -1,2 +1,5 @@
 # Este projeto não possui dependências externas no momento.
 # Adicione aqui os pacotes necessários, um por linha.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
